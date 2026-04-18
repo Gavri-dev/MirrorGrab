@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirrorGrab.Views.AddDialog"
+        Title="Add Download Batch"
+        Width="600" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="#2a2a2a">
+
+  <StackPanel Margin="24" Spacing="16">
+    <TextBlock Text="Add Download Batch" FontSize="18" FontWeight="Bold"
+               Foreground="#e4e4e4" />
+    <TextBlock Text="Files in a batch are saved together in a folder named after the batch."
+               Foreground="#8a8a8a" FontSize="12" TextWrapping="Wrap" />
+
+    <!-- Batch name -->
+    <StackPanel Spacing="6">
+      <TextBlock Text="Batch Name" Foreground="#e4e4e4" FontSize="13" FontWeight="SemiBold" />
+      <TextBox x:Name="NameEdit" Watermark="e.g. Season 4 Episodes" />
+    </StackPanel>
+
+    <!-- URLs -->
+    <StackPanel Spacing="6">
+      <DockPanel>
+        <TextBlock Text="URLs (one per line)" Foreground="#e4e4e4" FontSize="13"
+                   FontWeight="SemiBold" DockPanel.Dock="Left" VerticalAlignment="Center" />
+        <Button DockPanel.Dock="Right" Click="Browse_Click" Padding="8,4" CornerRadius="4">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconFile}" Width="14" Height="14" Foreground="#c8c8c8" />
+            <TextBlock Text="Load from .txt" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </DockPanel>
+      <TextBox x:Name="UrlsEdit" AcceptsReturn="True" Height="180"
+               TextWrapping="Wrap" Watermark="https://..." />
+    </StackPanel>
+
+    <!-- Auto-extract toggle -->
+    <DockPanel>
+      <TextBlock Text="Auto-extract archives after download"
+                 Foreground="#e4e4e4" FontSize="13" VerticalAlignment="Center" />
+      <ToggleSwitch x:Name="AutoExtractToggle" DockPanel.Dock="Right"
+                    OnContent="" OffContent="" />
+    </DockPanel>
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+      <Button Content="Cancel" Click="Cancel_Click" Padding="16,8" CornerRadius="6" />
+      <Button Content="Start" Click="Start_Click" Padding="16,8" CornerRadius="6"
+              Background="#4a9eff" Foreground="White" />
+    </StackPanel>
+  </StackPanel>
+</Window>

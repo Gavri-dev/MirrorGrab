@@ -1,0 +1,49 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorGrab.App"
+             RequestedThemeVariant="Dark">
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="/Assets/icon.ico"
+                ToolTipText="MirrorGrab"
+                Clicked="TrayIcon_Clicked">
+        <TrayIcon.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Show" Click="TrayShow_Click" />
+            <NativeMenuItem Header="Quit" Click="TrayQuit_Click" />
+          </NativeMenu>
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- Flat progress bar matching Python QProgressBar style -->
+    <Style Selector="ProgressBar.flat">
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="MinHeight" Value="14" />
+      <Setter Property="Template">
+        <ControlTemplate TargetType="ProgressBar">
+          <Border Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="#2f2f2f" BorderThickness="1">
+            <Panel ClipToBounds="True">
+              <Border x:Name="PART_Indicator"
+                      Background="{TemplateBinding Foreground}"
+                      CornerRadius="1"
+                      HorizontalAlignment="Left" />
+            </Panel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+  </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Themes/Dark.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

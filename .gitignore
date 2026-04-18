@@ -1,0 +1,32 @@
+# .NET build output
+bin/
+obj/
+
+# Publish output
+publish/
+publish*/
+*.publish.json
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NuGet
+*.nupkg
+packages/
+
+# Logs
+*.log

@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirrorGrab.Views.ExtractionDialog"
+        Title="Extracting Archives"
+        Width="560" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="#2a2a2a">
+
+  <StackPanel Margin="24" Spacing="14">
+    <TextBlock x:Name="TitleLabel" FontSize="16" FontWeight="Bold"
+               Foreground="#e4e4e4" TextWrapping="Wrap" />
+
+    <TextBlock x:Name="CurrentLabel" FontSize="12" Foreground="#8a8a8a"
+               TextTrimming="CharacterEllipsis" />
+
+    <ProgressBar x:Name="OverallProgress" Minimum="0" Height="8" CornerRadius="4"
+                 Foreground="#4a9eff" Background="#333333" />
+
+    <ListBox x:Name="FileList" MaxHeight="200"
+             Background="Transparent" BorderThickness="0" />
+
+    <TextBlock x:Name="SummaryLabel" FontSize="12" Foreground="#8a8a8a" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+      <Button x:Name="DeleteBtn" Content="Delete Source Archives"
+              IsVisible="False" Click="Delete_Click"
+              Padding="12,6" CornerRadius="6" />
+      <Button x:Name="CloseBtn" Content="Cancel" Click="Close_Click"
+              Padding="12,6" CornerRadius="6" />
+    </StackPanel>
+  </StackPanel>
+</Window>

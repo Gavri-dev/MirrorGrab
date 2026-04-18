@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorGrab.Views.SettingsView"
+             Background="{StaticResource BgBrush}">
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32,28">
+    <StackPanel Spacing="22" MaxWidth="700">
+      <TextBlock Text="Settings" FontSize="20" FontWeight="Bold"
+                 Foreground="{StaticResource TextBrush}" />
+
+      <!-- Download Location -->
+      <Border Background="{StaticResource BgAltBrush}" CornerRadius="8"
+              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+              Padding="16,14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="DOWNLOAD LOCATION" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextMutedBrush}" />
+          <DockPanel Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" Content="Browse" Click="Browse_Click"
+                    Padding="12,6" CornerRadius="6" Margin="12,0,0,0" />
+            <StackPanel>
+              <TextBlock Text="Download Folder" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextBrush}" />
+              <TextBlock x:Name="FolderLabel" FontSize="12"
+                         Foreground="{StaticResource TextDimBrush}"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Performance -->
+      <Border Background="{StaticResource BgAltBrush}" CornerRadius="8"
+              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+              Padding="16,14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="PERFORMANCE" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextMutedBrush}" />
+          <DockPanel Margin="0,8,0,0">
+            <NumericUpDown x:Name="ConcurrentSpin" DockPanel.Dock="Right"
+                           Minimum="1" Maximum="16" Increment="1"
+                           Width="120" FormatString="0"
+                           ValueChanged="Concurrent_Changed" />
+            <StackPanel>
+              <TextBlock Text="Concurrent Downloads" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextBrush}" />
+              <TextBlock Text="Number of files downloading at the same time (1-16)"
+                         FontSize="12" Foreground="{StaticResource TextDimBrush}" />
+            </StackPanel>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Post-Download -->
+      <Border Background="{StaticResource BgAltBrush}" CornerRadius="8"
+              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+              Padding="16,14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="POST-DOWNLOAD" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextMutedBrush}" />
+          <DockPanel Margin="0,8,0,0">
+            <ToggleSwitch x:Name="AutoExtractToggle" DockPanel.Dock="Right"
+                          OnContent="" OffContent=""
+                          IsCheckedChanged="AutoExtract_Changed" />
+            <StackPanel>
+              <TextBlock Text="Auto-Extract Archives" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextBrush}" />
+              <TextBlock Text="Extract .zip files automatically after download"
+                         FontSize="12" Foreground="{StaticResource TextDimBrush}" />
+            </StackPanel>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Behavior -->
+      <Border Background="{StaticResource BgAltBrush}" CornerRadius="8"
+              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+              Padding="16,14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="BEHAVIOR" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextMutedBrush}" />
+          <DockPanel Margin="0,8,0,0">
+            <ToggleSwitch x:Name="TrayToggle" DockPanel.Dock="Right"
+                          OnContent="" OffContent=""
+                          IsCheckedChanged="Tray_Changed" />
+            <StackPanel>
+              <TextBlock Text="Close to System Tray" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextBrush}" />
+              <TextBlock Text="Minimize to tray instead of quitting when clicking the X button"
+                         FontSize="12" Foreground="{StaticResource TextDimBrush}" />
+            </StackPanel>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

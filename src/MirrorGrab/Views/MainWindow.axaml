@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MirrorGrab.ViewModels"
+        xmlns:views="using:MirrorGrab.Views"
+        x:Class="MirrorGrab.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding WindowTitle}"
+        Width="1220" Height="780"
+        MinWidth="1000" MinHeight="640"
+        Background="{StaticResource BgBrush}"
+        Icon="/Assets/icon.ico">
+
+  <DockPanel>
+    <!-- Sidebar -->
+    <Border DockPanel.Dock="Left" Width="200"
+            Background="{StaticResource BgAltBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="0,0,1,0">
+      <DockPanel>
+        <!-- App title -->
+        <StackPanel DockPanel.Dock="Top" Margin="16,16,16,8">
+          <TextBlock Text="MirrorGrab" FontSize="16" FontWeight="Bold"
+                     Foreground="{StaticResource TextBrush}" />
+          <TextBlock Text="NAVIGATION" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextMutedBrush}" Margin="0,16,0,8" />
+        </StackPanel>
+
+        <!-- Settings button at bottom -->
+        <Button DockPanel.Dock="Bottom" x:Name="NavSettings"
+                Click="NavSettings_Click"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                Padding="16,10" Margin="4,4" CornerRadius="6"
+                Background="Transparent" Foreground="#8a8a8a">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon x:Name="NavSettingsIcon" Data="{StaticResource IconCog}" Width="16" Height="16" Foreground="#8a8a8a" />
+            <TextBlock Text="Settings" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+
+        <!-- Nav buttons -->
+        <StackPanel Margin="0,0,0,0">
+          <Button x:Name="NavDownloads" Click="NavDownloads_Click"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                  Padding="16,10" Margin="4,2" CornerRadius="6"
+                  Background="#2d4f7a" Foreground="#4a9eff">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <PathIcon x:Name="NavDownloadsIcon" Data="{StaticResource IconDownload}" Width="16" Height="16" Foreground="#4a9eff" />
+              <TextBlock Text="Downloads" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Main content -->
+    <Panel>
+      <views:DownloadsView x:Name="DownloadsPage"
+                           IsVisible="True" />
+      <views:SettingsView x:Name="SettingsPage"
+                          IsVisible="False" />
+    </Panel>
+  </DockPanel>
+</Window>

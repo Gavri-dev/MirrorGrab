@@ -1,0 +1,300 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MirrorGrab.ViewModels"
+             xmlns:conv="using:MirrorGrab.Converters"
+             x:Class="MirrorGrab.Views.DownloadsView"
+             x:DataType="vm:MainWindowViewModel"
+             Background="{StaticResource BgBrush}">
+
+  <UserControl.Resources>
+    <conv:StringToSolidBrushConverter x:Key="ToBrush" />
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,Auto,*">
+    <!-- Toolbar -->
+    <Border Grid.Row="0" Background="{StaticResource BgAltBrush}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+            Padding="16,10">
+      <DockPanel>
+        <TextBlock Text="Downloads" FontSize="16" FontWeight="Bold"
+                   Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                   DockPanel.Dock="Left" Margin="0,0,12,0" />
+
+        <StackPanel Orientation="Horizontal" Spacing="6"
+                    DockPanel.Dock="Left" VerticalAlignment="Center">
+          <Button x:Name="AddBtn" Click="Add_Click"
+                  Background="#4a9eff" Foreground="White"
+                  Padding="10,7" CornerRadius="4" FontWeight="SemiBold" FontSize="12">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconPlus}" Width="14" Height="14" Foreground="White" />
+              <TextBlock Text="Add Batch" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <Button Click="PauseAll_Click" Padding="10,7" CornerRadius="4" FontSize="12">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconPause}" Width="14" Height="14" Foreground="#c8c8c8" />
+              <TextBlock Text="Pause All" VerticalAlignment="Center" Foreground="#c8c8c8" />
+            </StackPanel>
+          </Button>
+
+          <Button Click="ResumeAll_Click" Padding="10,7" CornerRadius="4" FontSize="12">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconPlay}" Width="14" Height="14" Foreground="#c8c8c8" />
+              <TextBlock Text="Resume All" VerticalAlignment="Center" Foreground="#c8c8c8" />
+            </StackPanel>
+          </Button>
+
+          <Button Click="ClearFinished_Click" Padding="10,7" CornerRadius="4" FontSize="12">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconBroom}" Width="14" Height="14" Foreground="#c8c8c8" />
+              <TextBlock Text="Clear Finished" VerticalAlignment="Center" Foreground="#c8c8c8" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <TextBlock Text="{Binding StatsText}" Foreground="{StaticResource TextDimBrush}"
+                   VerticalAlignment="Center" FontSize="11"
+                   DockPanel.Dock="Right" Margin="12,0,0,0" />
+        <Panel />
+      </DockPanel>
+    </Border>
+
+    <!-- Column headers -->
+    <Border Grid.Row="1" Background="{StaticResource BgAltBrush}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+            Padding="0,8" IsVisible="{Binding !HasNoBatches}">
+      <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
+        <TextBlock Grid.Column="1" Text="Name" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0" />
+        <TextBlock Grid.Column="2" Text="Size" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+        <TextBlock Grid.Column="3" Text="Progress" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0" />
+        <TextBlock Grid.Column="4" Text="Speed" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+        <TextBlock Grid.Column="5" Text="ETA" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+        <TextBlock Grid.Column="6" Text="Status" Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+      </Grid>
+    </Border>
+
+    <!-- Content area -->
+    <Panel Grid.Row="2">
+      <!-- Empty state -->
+      <TextBlock Text="No downloads yet&#x0a;Drop a .txt file or click 'Add Batch' to start"
+                 IsVisible="{Binding HasNoBatches}"
+                 Foreground="{StaticResource TextMutedBrush}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                 TextAlignment="Center" FontSize="14" Opacity="0.7" />
+
+      <!-- Batch list -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    IsVisible="{Binding !HasNoBatches}">
+        <ItemsControl ItemsSource="{Binding Batches}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BatchViewModel">
+              <StackPanel>
+                <!-- ═══ Batch row ═══ -->
+                <Border Padding="0,6" Background="{StaticResource BgAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                        Tag="{Binding Id}">
+                  <Border.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Open folder" Tag="{Binding Id}" Click="Ctx_OpenBatchFolder" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
+                  <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
+                    <!-- Expand/collapse -->
+                    <Button Grid.Column="0" Background="Transparent"
+                            Padding="4,2" VerticalAlignment="Center"
+                            Tag="{Binding}" Click="ToggleExpand_Click"
+                            FontSize="10" Foreground="#8a8a8a"
+                            HorizontalAlignment="Center">
+                      <Panel>
+                        <TextBlock Text="&#x25BC;" IsVisible="{Binding IsExpanded}" />
+                        <TextBlock Text="&#x25B6;" IsVisible="{Binding !IsExpanded}" />
+                      </Panel>
+                    </Button>
+
+                    <!-- Name (bold) -->
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" FontSize="13"
+                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" Margin="4,0" />
+
+                    <!-- Size -->
+                    <TextBlock Grid.Column="2" Text="{Binding SizeText}"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                    <!-- Progress bar with % text -->
+                    <Panel Grid.Column="3" Height="16" Margin="8,0">
+                      <ProgressBar Classes="flat" Value="{Binding Progress}" Minimum="0" Maximum="100"
+                                   Height="16"
+                                   Foreground="{Binding ProgressBarColor, Converter={StaticResource ToBrush}}"
+                                   Background="#2a2a2a" />
+                      <TextBlock Text="{Binding ProgressText}"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 FontSize="10" Foreground="#e4e4e4" />
+                    </Panel>
+
+                    <!-- Speed -->
+                    <TextBlock Grid.Column="4" Text="{Binding SpeedText}"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                    <!-- ETA -->
+                    <TextBlock Grid.Column="5" Text="{Binding EtaText}"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                    <!-- Status -->
+                    <TextBlock Grid.Column="6" Text="{Binding StatusText}"
+                               Foreground="{Binding StatusColor, Converter={StaticResource ToBrush}}"
+                               FontSize="11" VerticalAlignment="Center"
+                               TextAlignment="Right" Margin="0,0,8,0"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <!-- Batch actions -->
+                    <StackPanel Grid.Column="7" Orientation="Horizontal"
+                                Spacing="1" VerticalAlignment="Center"
+                                HorizontalAlignment="Left">
+                      <Button ToolTip.Tip="Pause" IsVisible="{Binding ShowPause}"
+                              Tag="{Binding Id}" Click="PauseBatch_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconPause}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                      <Button ToolTip.Tip="Resume" IsVisible="{Binding ShowResume}"
+                              Tag="{Binding Id}" Click="ResumeBatch_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconPlay}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                      <Button ToolTip.Tip="Cancel" IsVisible="{Binding ShowCancel}"
+                              Tag="{Binding Id}" Click="CancelBatch_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconClose}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                      <Button ToolTip.Tip="Retry Failed" IsVisible="{Binding ShowRetry}"
+                              Tag="{Binding Id}" Click="RetryBatch_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconRefresh}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                      <Button ToolTip.Tip="Remove" IsVisible="{Binding ShowRemove}"
+                              Tag="{Binding Id}" Click="RemoveBatch_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconTrash}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                      <Button ToolTip.Tip="Open Folder"
+                              Tag="{Binding Id}" Click="OpenBatchFolder_Click"
+                              Background="Transparent" Padding="5,3" CornerRadius="3">
+                        <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" Foreground="#c8c8c8" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+
+                <!-- ═══ Item rows (collapsible) ═══ -->
+                <ItemsControl ItemsSource="{Binding Items}"
+                              IsVisible="{Binding IsExpanded}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DownloadItemViewModel">
+                      <Border Padding="0,5" Background="{StaticResource BgBrush}"
+                              BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                              Tag="{Binding Id}">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Open folder" Tag="{Binding Id}" Click="Ctx_OpenItemFolder" />
+                            <MenuItem Header="Copy URL" Tag="{Binding Id}" Click="Ctx_CopyUrl" />
+                            <MenuItem Header="Open URL in browser" Tag="{Binding Id}" Click="Ctx_OpenUrl" />
+                            <Separator IsVisible="{Binding ShowRetry}" />
+                            <MenuItem Header="Retry" Tag="{Binding Id}" Click="Ctx_Retry"
+                                      IsVisible="{Binding ShowRetry}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
+                          <!-- Indent spacer -->
+                          <Panel Grid.Column="0" />
+
+                          <!-- Name -->
+                          <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                     Foreground="{StaticResource TextBrush}" FontSize="12"
+                                     VerticalAlignment="Center" Margin="22,0,4,0"
+                                     TextTrimming="CharacterEllipsis" />
+
+                          <!-- Size -->
+                          <TextBlock Grid.Column="2" Text="{Binding SizeText}"
+                                     Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                          <!-- Progress bar with % text -->
+                          <Panel Grid.Column="3" Height="14" Margin="8,0">
+                            <ProgressBar Classes="flat" Value="{Binding Progress}" Minimum="0" Maximum="100"
+                                         Height="14"
+                                         Foreground="{Binding ProgressBarColor, Converter={StaticResource ToBrush}}"
+                                         Background="#2a2a2a" />
+                            <TextBlock Text="{Binding ProgressText}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="10" Foreground="#e4e4e4" />
+                          </Panel>
+
+                          <!-- Speed -->
+                          <TextBlock Grid.Column="4" Text="{Binding SpeedText}"
+                                     Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                          <!-- ETA -->
+                          <TextBlock Grid.Column="5" Text="{Binding EtaText}"
+                                     Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+
+                          <!-- Status -->
+                          <TextBlock Grid.Column="6" Text="{Binding StatusText}"
+                                     Foreground="{Binding StatusColor, Converter={StaticResource ToBrush}}"
+                                     FontSize="11" VerticalAlignment="Center"
+                                     TextAlignment="Right" Margin="0,0,8,0"
+                                     TextTrimming="CharacterEllipsis" />
+
+                          <!-- Item actions -->
+                          <StackPanel Grid.Column="7" Orientation="Horizontal"
+                                      Spacing="1" VerticalAlignment="Center"
+                                      HorizontalAlignment="Left">
+                            <Button ToolTip.Tip="Pause" IsVisible="{Binding ShowPause}"
+                                    Tag="{Binding Id}" Click="PauseItem_Click"
+                                    Background="Transparent" Padding="4,2" CornerRadius="3">
+                              <PathIcon Data="{StaticResource IconPause}" Width="12" Height="12" Foreground="#c8c8c8" />
+                            </Button>
+                            <Button ToolTip.Tip="Resume" IsVisible="{Binding ShowResume}"
+                                    Tag="{Binding Id}" Click="ResumeItem_Click"
+                                    Background="Transparent" Padding="4,2" CornerRadius="3">
+                              <PathIcon Data="{StaticResource IconPlay}" Width="12" Height="12" Foreground="#c8c8c8" />
+                            </Button>
+                            <Button ToolTip.Tip="Cancel" IsVisible="{Binding ShowCancel}"
+                                    Tag="{Binding Id}" Click="CancelItem_Click"
+                                    Background="Transparent" Padding="4,2" CornerRadius="3">
+                              <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12" Foreground="#c8c8c8" />
+                            </Button>
+                            <Button ToolTip.Tip="Retry" IsVisible="{Binding ShowRetry}"
+                                    Tag="{Binding Id}" Click="RetryItem_Click"
+                                    Background="Transparent" Padding="4,2" CornerRadius="3">
+                              <PathIcon Data="{StaticResource IconRefresh}" Width="12" Height="12" Foreground="#c8c8c8" />
+                            </Button>
+                            <Button ToolTip.Tip="Remove" IsVisible="{Binding ShowRemove}"
+                                    Tag="{Binding Id}" Click="RemoveItem_Click"
+                                    Background="Transparent" Padding="4,2" CornerRadius="3">
+                              <PathIcon Data="{StaticResource IconTrash}" Width="12" Height="12" Foreground="#c8c8c8" />
+                            </Button>
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Panel>
+  </Grid>
+</UserControl>
