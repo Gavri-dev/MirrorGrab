@@ -100,7 +100,10 @@ public class DownloadEngine : IDisposable
     public void Cancel(int itemId)
     {
         if (_cancelTokens.TryGetValue(itemId, out var cts))
-            cts.Cancel();
+        {
+            try { cts.Cancel(); }
+            catch (ObjectDisposedException) { } // item finished as we cancelled it
+        }
         // Also wake from pause so the loop can exit
         if (_pauseTcs.TryRemove(itemId, out var tcs))
             tcs.TrySetResult();
@@ -108,34 +111,41 @@ public class DownloadEngine : IDisposable
 
     private async Task DownloadWithSemAsync(DownloadItem item)
     {
-        try
-        {
-            await _semaphore.WaitAsync(_batchCts!.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return; // Batch cancelled while waiting in queue
-        }
+        // Cancelled before it reached the engine (e.g. during link extraction or size probe).
+        if (item.Status == DownloadStatus.Failed && item.Error == "Cancelled") return;
 
+        // Register the item's token before queueing, so Cancel() also works while it waits.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_batchCts!.Token);
+        _cancelTokens[item.Id] = cts;
         try
         {
-            if (_batchCts!.IsCancellationRequested) return;
-            await DownloadFileAsync(item);
+            try
+            {
+                await _semaphore.WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return; // Item or batch cancelled while waiting in queue
+            }
+
+            try
+            {
+                if (cts.IsCancellationRequested) return;
+                await DownloadFileAsync(item, cts.Token);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
         finally
         {
-            _semaphore.Release();
+            _cancelTokens.TryRemove(item.Id, out _);
         }
     }
 
-    private async Task DownloadFileAsync(DownloadItem item)
+    private async Task DownloadFileAsync(DownloadItem item, CancellationToken ct)
     {
-        var cts = _batchCts != null
-            ? CancellationTokenSource.CreateLinkedTokenSource(_batchCts.Token)
-            : new CancellationTokenSource();
-        _cancelTokens[item.Id] = cts;
-        var ct = cts.Token;
-
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
             try
@@ -305,8 +315,6 @@ public class DownloadEngine : IDisposable
             item.Speed = 0;
             OnStatusChange?.Invoke(item);
         }
-
-        _cancelTokens.TryRemove(item.Id, out _);
     }
 
     // A rejected signed link surfaces as an HTTP error status on the GET (initial request

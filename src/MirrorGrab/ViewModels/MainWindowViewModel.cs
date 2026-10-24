@@ -99,6 +99,11 @@ public class MainWindowViewModel : ViewModelBase
                     Error = id.Error,
                 };
 
+                // Older builds kept downloading items the user had cancelled before they
+                // started, then saved them as paused. Keep them cancelled, not resumable.
+                if (item.Error == "Cancelled" && !terminal.Contains(item.Status))
+                    item.Status = DownloadStatus.Failed;
+
                 if (!terminal.Contains(item.Status))
                 {
                     // Try to preserve partial file so the engine can resume via Range requests.
@@ -690,7 +695,9 @@ public class MainWindowViewModel : ViewModelBase
         if (!_batches.TryGetValue(batchId, out var batch)) return;
         if (_retryEngines.ContainsKey(itemId)) return;
 
-        bool hadDirect = item.DirectUrl != null;
+        // A skipped item's link led to a file that already exists — possibly because the
+        // resolver handed back the wrong file — so resolve a fresh link instead of reusing it.
+        bool hadDirect = item.DirectUrl != null && item.Status != DownloadStatus.Skipped;
 
         // Keep partial file for resume — set DownloadedSize from actual file.
         // Multipart pre-allocates the full file size, so on-disk Length == TotalSize

@@ -89,6 +89,12 @@ sealed class ResolverForm : Form
     private TaskCompletionSource<(bool ok, string value)>? _tcs;
     private volatile bool _captured;
     private volatile bool _navigating;   // true only for our own initial page load
+
+    // A /dl/ link only counts once the requested page has replaced the previous one.
+    // Until then, a late htmx redirect from the previous page (an extra click that was
+    // still in flight) would otherwise be returned as this page's link — wrong file.
+    private volatile bool _armed;
+    private readonly HashSet<ulong> _pageNavIds = new();
     public event Action? Ready;
 
     public ResolverForm()
@@ -129,15 +135,24 @@ sealed class ResolverForm : Form
                 if (IsDlLink(e.Uri))
                 {
                     e.Cancel = true;
-                    Complete(true, e.Uri);
+                    if (_armed) Complete(true, e.Uri);
                 }
-                else if (!_navigating
-                         && !string.IsNullOrEmpty(e.Uri)
+                else if (_navigating)
+                {
+                    _pageNavIds.Add(e.NavigationId);
+                }
+                else if (!string.IsNullOrEmpty(e.Uri)
                          && !e.Uri.Contains("fuckingfast.co", StringComparison.OrdinalIgnoreCase)
                          && !e.Uri.StartsWith("about:", StringComparison.OrdinalIgnoreCase))
                 {
                     e.Cancel = true; // ad redirect — stay on the file page
                 }
+            };
+
+            // The requested page's document has committed: the previous page is gone.
+            core.ContentLoading += (_, e) =>
+            {
+                if (_pageNavIds.Contains(e.NavigationId)) _armed = true;
             };
 
             // The download can also arrive as a file download or a pop-up window.
@@ -196,9 +211,14 @@ sealed class ResolverForm : Form
         bool surfaced = false;
         try
         {
+            _armed = false;
+            _pageNavIds.Clear();
             _navigating = true;
             var navDone = new TaskCompletionSource<bool>();
-            void OnNav(object? s, CoreWebView2NavigationCompletedEventArgs e) => navDone.TrySetResult(true);
+            void OnNav(object? s, CoreWebView2NavigationCompletedEventArgs e)
+            {
+                if (_pageNavIds.Contains(e.NavigationId)) navDone.TrySetResult(true);
+            }
             _web.CoreWebView2.NavigationCompleted += OnNav;
             _web.CoreWebView2.Navigate(url);
             await Task.WhenAny(navDone.Task, Task.Delay(TimeSpan.FromSeconds(20)));
@@ -259,9 +279,9 @@ sealed class ResolverForm : Form
 
     private void TryCapture(string uri, Action? cancel)
     {
-        if (_captured || !IsDlLink(uri)) return;
+        if (!IsDlLink(uri)) return;
         try { cancel?.Invoke(); } catch { }
-        Complete(true, uri);
+        if (!_captured && _armed) Complete(true, uri);
     }
 
     private void Complete(bool ok, string value)
