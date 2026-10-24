@@ -16,6 +16,9 @@ A Windows download manager for repack mirror links (FitGirl, ElAmigos, DODI, etc
 ## Requirements
 
 - Windows 10 or later (x64)
+- **Microsoft Edge WebView2 Runtime** — used to clear the Cloudflare Turnstile that
+  `fuckingfast.co` now puts in front of its links. Ships with current Windows/Edge; if
+  missing, install the Evergreen runtime from Microsoft.
 - .NET 8 SDK (only required to build from source)
 - 7-Zip (optional) — used as a fallback extractor for archives SharpCompress cannot open
 
@@ -59,10 +62,27 @@ Settings and batch state are stored under `%LocalAppData%\MirrorGrab\`.
 
 Direct-link resolution is implemented for:
 
-- `fuckingfast.co`
+- `fuckingfast.co` — resolved through a headless WebView2 browser (see below), since the
+  site moved its links behind a Cloudflare Turnstile captcha and an htmx request.
 - `datanodes.to`
 
 URLs from other hosts are treated as direct download links.
+
+### fuckingfast.co and the captcha
+
+`fuckingfast.co` no longer exposes a scrapeable direct link — the download is gated by a
+Cloudflare Turnstile check and handed out only via a signed `dl.fuckingfast.co/dl/...` URL.
+MirrorGrab resolves these with a bundled sidecar (`resolver/FfResolver.exe`, a hidden
+WebView2 browser):
+
+1. It loads each page invisibly and lets the managed/invisible Turnstile clear itself.
+2. If Cloudflare escalates to an interactive checkbox (common when many links are resolved
+   quickly from one IP), a small **"please complete the check"** window appears — tick it
+   once. The resulting clearance cookie is cached, so the remaining links in the batch go
+   back to resolving invisibly.
+
+The signed link that comes back supports HTTP `Range`, so the normal multi-part download
+engine handles it with no cookies or session sharing required.
 
 ## License
 

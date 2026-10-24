@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{AAC540B2-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorGrab", "src\MirrorGrab\MirrorGrab.csproj", "{A528983F-88B7-44AD-A7D9-827EA4D9B904}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FfResolver", "src\FfResolver\FfResolver.csproj", "{4F487E39-5369-41E4-81C5-662064E3933D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,8 +22,13 @@ Global
 		{A528983F-88B7-44AD-A7D9-827EA4D9B904}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A528983F-88B7-44AD-A7D9-827EA4D9B904}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A528983F-88B7-44AD-A7D9-827EA4D9B904}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F487E39-5369-41E4-81C5-662064E3933D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F487E39-5369-41E4-81C5-662064E3933D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F487E39-5369-41E4-81C5-662064E3933D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F487E39-5369-41E4-81C5-662064E3933D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A528983F-88B7-44AD-A7D9-827EA4D9B904} = {AAC540B2-B728-432E-A71B-5F5C14627A6C}
+		{4F487E39-5369-41E4-81C5-662064E3933D} = {AAC540B2-B728-432E-A71B-5F5C14627A6C}
 	EndGlobalSection
 EndGlobal

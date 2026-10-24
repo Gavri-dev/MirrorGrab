@@ -33,6 +33,13 @@ public class DownloadEngine : IDisposable
     public Action<DownloadItem>? OnStatusChange;
     public Action<string>? OnLog;
 
+    /// <summary>
+    /// Optional: given an item whose direct link was rejected (expired signed URL),
+    /// produce a fresh direct URL. Return null if the item can't be re-resolved.
+    /// Used to recover fuckingfast.co links that time out while queued or mid-download.
+    /// </summary>
+    public Func<DownloadItem, CancellationToken, Task<string?>>? ReResolve;
+
     public DownloadEngine(string downloadDir, int concurrent = 8)
     {
         _downloadDir = downloadDir;
@@ -75,7 +82,7 @@ public class DownloadEngine : IDisposable
         {
             Timeout = Timeout.InfiniteTimeSpan,
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        BrowserHeaders.Apply(client);
         return client;
     }
 
@@ -250,6 +257,31 @@ public class DownloadEngine : IDisposable
             catch (Exception ex)
             {
                 OnLog?.Invoke($"Attempt {attempt + 1} failed for {item.Filename}: {ex.Message}");
+
+                // Signed mirror links (fuckingfast.co) expire. On a 403/410/etc, ask the
+                // host to hand us a fresh link and retry from scratch with it.
+                if (IsExpiredLink(ex) && ReResolve != null && attempt < MaxRetries - 1
+                    && !ct.IsCancellationRequested)
+                {
+                    OnLog?.Invoke($"Link for {item.Filename} looks expired — re-resolving…");
+                    try
+                    {
+                        var fresh = await ReResolve(item, ct);
+                        if (!string.IsNullOrWhiteSpace(fresh))
+                        {
+                            item.DirectUrl = fresh;
+                            ResetPartial(item);   // fresh link ⇒ start the file clean
+                            OnLog?.Invoke($"Got a fresh link for {item.Filename}; retrying.");
+                            continue;             // retry now, no backoff
+                        }
+                        OnLog?.Invoke($"Re-resolve produced no link for {item.Filename}.");
+                    }
+                    catch (Exception rex)
+                    {
+                        OnLog?.Invoke($"Re-resolve failed for {item.Filename}: {rex.Message}");
+                    }
+                }
+
                 if (attempt == MaxRetries - 1 && !ct.IsCancellationRequested)
                 {
                     item.Error = ex.Message;
@@ -275,6 +307,31 @@ public class DownloadEngine : IDisposable
         }
 
         _cancelTokens.TryRemove(item.Id, out _);
+    }
+
+    // A rejected signed link surfaces as an HTTP error status on the GET (initial request
+    // or a multipart part). Treat the usual "link no longer valid" codes as expiry.
+    private static bool IsExpiredLink(Exception ex)
+    {
+        for (var e = ex; e != null; e = e.InnerException)
+            if (e is HttpRequestException hre && hre.StatusCode is
+                HttpStatusCode.Forbidden or HttpStatusCode.Gone or
+                HttpStatusCode.Unauthorized or HttpStatusCode.NotFound)
+                return true;
+        return false;
+    }
+
+    // Discard any bytes already on disk so a re-resolved link restarts the file cleanly.
+    private void ResetPartial(DownloadItem item)
+    {
+        item.DownloadedSize = 0;
+        item.Speed = 0;
+        try
+        {
+            if (item.Filepath != null && File.Exists(item.Filepath))
+                File.WriteAllBytes(item.Filepath, []);
+        }
+        catch (Exception ex) { OnLog?.Invoke($"Could not reset {item.Filepath}: {ex.Message}"); }
     }
 
     private async Task SingleDownloadAsync(DownloadItem item, HttpResponseMessage resp,

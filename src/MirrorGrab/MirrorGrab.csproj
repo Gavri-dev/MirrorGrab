@@ -28,4 +28,31 @@
     <AvaloniaResource Include="Themes\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Build-order only: make sure the headless-WebView2 resolver is built before we copy it. -->
+    <ProjectReference Include="..\FfResolver\FfResolver.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      Private="false" />
+  </ItemGroup>
+
+  <!-- Drop FfResolver.exe (+ its files) into resolver\ beside MirrorGrab.exe, on build and publish. -->
+  <Target Name="CopyFfResolver" AfterTargets="Build">
+    <ItemGroup>
+      <_FfResolverFiles Include="$(MSBuildThisFileDirectory)..\FfResolver\bin\$(Configuration)\net8.0-windows\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FfResolverFiles)"
+          DestinationFiles="@(_FfResolverFiles->'$(OutDir)resolver\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyFfResolverOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_FfResolverPub Include="$(MSBuildThisFileDirectory)..\FfResolver\bin\$(Configuration)\net8.0-windows\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FfResolverPub)"
+          DestinationFiles="@(_FfResolverPub->'$(PublishDir)resolver\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

@@ -185,35 +185,84 @@ public class MainWindowViewModel : ViewModelBase
         Directory.CreateDirectory(batchDir);
 
         var batch = new DownloadBatch { Id = _nextBatchId++, Name = name, AutoExtract = autoExtract };
-
-        foreach (var url in urls)
-        {
-            var item = new DownloadItem
-            {
-                Id = _nextItemId++,
-                OriginalUrl = url,
-                DownloadDir = batchDir
-            };
-            batch.Items.Add(item);
-            _items[item.Id] = item;
-            _itemToBatch[item.Id] = batch.Id;
-        }
-
         _batches[batch.Id] = batch;
 
         var bvm = new BatchViewModel(batch);
         _batchVMs[batch.Id] = bvm;
-        foreach (var item in batch.Items)
-        {
-            var ivm = new DownloadItemViewModel(item);
-            _itemVMs[item.Id] = ivm;
-            bvm.Items.Add(ivm);
-        }
-
         Batches.Add(bvm);
         SyncUi();
 
-        _ = Task.Run(() => RunExtraction(batch));
+        // Items are built after a background pass that expands any repack listing pages
+        // (e.g. a pasted FitGirl URL) into their individual mirror links.
+        _ = Task.Run(() => PrepareBatch(batch, urls, batchDir));
+    }
+
+    // Turns raw pasted lines into download items. A FitGirl (repack) page URL is fetched
+    // and expanded into the fuckingfast.co links it lists; everything else passes through.
+    private async Task PrepareBatch(DownloadBatch batch, List<string> rawUrls, string batchDir)
+    {
+        var resolved = new List<(string url, string? error)>();
+
+        using (var extractor = new LinkExtractor())
+        {
+            foreach (var raw in rawUrls)
+            {
+                var url = raw.Trim();
+                if (url.Length == 0) continue;
+
+                if (LinkExtractor.IsRepackPage(url))
+                {
+                    try
+                    {
+                        var found = await extractor.ExpandRepackPageAsync(url);
+                        if (found.Count > 0)
+                            resolved.AddRange(found.Select(f => (f, (string?)null)));
+                        else
+                            resolved.Add((url, "No fuckingfast.co links found on this page"));
+                    }
+                    catch (Exception ex)
+                    {
+                        resolved.Add((url, $"Couldn't read repack page: {ex.Message}"));
+                    }
+                }
+                else
+                {
+                    resolved.Add((url, (string?)null));
+                }
+            }
+        }
+
+        // De-dup successful links in order (expansion can repeat across pasted pages).
+        var seen = new HashSet<string>();
+        var final = new List<(string url, string? error)>();
+        foreach (var r in resolved)
+        {
+            if (r.error == null && !seen.Add(r.url.Split('#')[0])) continue;
+            final.Add(r);
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var (url, error) in final)
+            {
+                var item = new DownloadItem { Id = _nextItemId++, OriginalUrl = url, DownloadDir = batchDir };
+                if (error != null)
+                {
+                    item.Status = DownloadStatus.Failed;
+                    item.Error = error;
+                }
+                batch.Items.Add(item);
+                _items[item.Id] = item;
+                _itemToBatch[item.Id] = batch.Id;
+
+                var ivm = new DownloadItemViewModel(item);
+                _itemVMs[item.Id] = ivm;
+                if (_batchVMs.TryGetValue(batch.Id, out var bvm))
+                    bvm.Items.Add(ivm);
+            }
+            SyncUi();
+            _ = Task.Run(() => RunExtraction(batch));
+        });
     }
 
     private string UniqueBatchName(string baseName, string downloadDir)
@@ -233,12 +282,16 @@ public class MainWindowViewModel : ViewModelBase
     private static HttpClient CreateProbeClient()
     {
         var c = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        BrowserHeaders.Apply(c);
         return c;
     }
 
     private async Task<bool> ExtractLinkAsync(LinkExtractor extractor, DownloadItem item, int batchId)
     {
+        // Already failed during preparation (e.g. a repack page we couldn't scrape).
+        if (item.Status == DownloadStatus.Failed && item.Error != null)
+            return false;
+
         item.Status = DownloadStatus.Extracting;
         PostItemUpdate(item.Id);
         PostBatchUpdate(batchId);
@@ -360,16 +413,39 @@ public class MainWindowViewModel : ViewModelBase
             engine.OnProgress = item => PostItemProgress(item.Id);
             engine.OnStatusChange = item => PostItemUpdate(item.Id);
 
+            var reHolder = new LinkExtractor?[1];
+            var reGate = new SemaphoreSlim(1, 1);
+            engine.ReResolve = (item, ct) => ReResolveAsync(item, reHolder, reGate, ct);
+
             try
             {
                 await engine.DownloadAllAsync(items);
             }
             finally
             {
+                reHolder[0]?.Dispose();
+                reGate.Dispose();
                 _batchEngines.TryRemove(batch.Id, out _);
                 PostBatchDone(batch.Id);
             }
         });
+    }
+
+    // Serialized re-resolver shared across a batch's downloads: only fuckingfast.co page
+    // URLs can be refreshed, and only one headless-browser resolve runs at a time.
+    private static async Task<string?> ReResolveAsync(
+        DownloadItem item, LinkExtractor?[] holder, SemaphoreSlim gate, CancellationToken ct)
+    {
+        if (!item.OriginalUrl.Contains("fuckingfast.co", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        await gate.WaitAsync(ct);
+        try
+        {
+            holder[0] ??= new LinkExtractor();
+            return await holder[0]!.ExtractAsync(item.OriginalUrl);
+        }
+        finally { gate.Release(); }
     }
 
     // ---- UI thread dispatch helpers ----
@@ -695,12 +771,18 @@ public class MainWindowViewModel : ViewModelBase
             engine.OnStatusChange = it => PostItemUpdate(it.Id);
             _retryEngines[item.Id] = engine;
 
+            var reHolder = new LinkExtractor?[1];
+            var reGate = new SemaphoreSlim(1, 1);
+            engine.ReResolve = (it, ct) => ReResolveAsync(it, reHolder, reGate, ct);
+
             try
             {
                 await engine.DownloadAllAsync([item]);
             }
             finally
             {
+                reHolder[0]?.Dispose();
+                reGate.Dispose();
                 _retryEngines.TryRemove(item.Id, out _);
                 engine.Dispose();
             }
