@@ -135,6 +135,7 @@ public class DownloadEngine : IDisposable
             }
             finally
             {
+                ReleaseActive(item.Filepath);
                 _semaphore.Release();
             }
         }
@@ -146,6 +147,9 @@ public class DownloadEngine : IDisposable
 
     private async Task DownloadFileAsync(DownloadItem item, CancellationToken ct)
     {
+        if (item.Filepath != null) MarkActive(item.Filepath);
+        bool singleStreamOnly = false;   // set once a server is caught ignoring part ranges
+
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
             try
@@ -155,6 +159,14 @@ public class DownloadEngine : IDisposable
                 item.Status = DownloadStatus.Downloading;
                 item.StartedAt ??= DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 OnStatusChange?.Invoke(item);
+
+                // A multipart file is pre-allocated to full size, so its length says nothing
+                // about what arrived: after a failed multipart attempt, start the file over.
+                if (item.UseMultipart)
+                {
+                    ResetPartial(item);
+                    item.UseMultipart = false;
+                }
 
                 var url = item.DirectUrl ?? item.OriginalUrl;
 
@@ -236,7 +248,7 @@ public class DownloadEngine : IDisposable
                     var canMultipart = acceptRanges && item.TotalSize > 0 &&
                         !StrictHosts.Any(h => host.Contains(h));
 
-                    if (canMultipart && item.TotalSize > ChunkSize * 2)
+                    if (canMultipart && !singleStreamOnly && item.TotalSize > ChunkSize * 2)
                     {
                         item.UseMultipart = true;
                         item.Parts = PartsPerFile;
@@ -268,6 +280,13 @@ public class DownloadEngine : IDisposable
             {
                 OnLog?.Invoke($"Attempt {attempt + 1} failed for {item.Filename}: {ex.Message}");
 
+                if (ex is RangeNotHonoredException && attempt < MaxRetries - 1)
+                {
+                    OnLog?.Invoke($"{item.Filename}: server ignored byte ranges; downloading as one stream.");
+                    singleStreamOnly = true;
+                    continue;
+                }
+
                 // Signed mirror links (fuckingfast.co) expire. On a 403/410/etc, ask the
                 // host to hand us a fresh link and retry from scratch with it.
                 if (IsExpiredLink(ex) && ReResolve != null && attempt < MaxRetries - 1
@@ -277,6 +296,7 @@ public class DownloadEngine : IDisposable
                     try
                     {
                         var fresh = await ReResolve(item, ct);
+                        if (ct.IsCancellationRequested) break;
                         if (!string.IsNullOrWhiteSpace(fresh))
                         {
                             item.DirectUrl = fresh;
@@ -298,7 +318,8 @@ public class DownloadEngine : IDisposable
                 }
                 else if (attempt < MaxRetries - 1)
                 {
-                    await Task.Delay(1000 * (attempt + 1), CancellationToken.None);
+                    try { await Task.Delay(1000 * (attempt + 1), ct); }
+                    catch (OperationCanceledException) { break; }
                 }
             }
         }
@@ -454,6 +475,12 @@ public class DownloadEngine : IDisposable
             HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
 
+        // A server that ignores Range sends the whole file, which would overwrite the other
+        // parts. Bail out before writing anything; the caller falls back to a single stream.
+        if (resp.StatusCode != HttpStatusCode.PartialContent ||
+            resp.Content.Headers.ContentRange?.From != start)
+            throw new RangeNotHonoredException();
+
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         // One file handle per part, reused for every chunk. ReadAsync from network
         // returns small slices, so opening a new FileStream per write would mean
@@ -550,12 +577,18 @@ public class DownloadEngine : IDisposable
         lock (FilenameLock)
         {
             var path = Path.Combine(dir, filename);
+            if (ActivePaths.Contains(path)) return null;   // another download is writing it
+
             if (File.Exists(path))
             {
                 // 0-byte placeholder from a prior failed download — reclaim it.
                 try
                 {
-                    if (new FileInfo(path).Length == 0) return path;
+                    if (new FileInfo(path).Length == 0)
+                    {
+                        ActivePaths.Add(path);
+                        return path;
+                    }
                 }
                 catch { }
                 return null;
@@ -563,9 +596,28 @@ public class DownloadEngine : IDisposable
 
             // Create empty file to claim
             File.WriteAllBytes(path, []);
+            ActivePaths.Add(path);
             return path;
         }
     }
+
+    // Files that downloads (in any engine) are writing right now. A freshly claimed file
+    // stays 0 bytes until its first write is flushed, so size alone can't tell a leftover
+    // placeholder from a file another download just claimed.
+    private static readonly HashSet<string> ActivePaths = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void MarkActive(string path)
+    {
+        lock (FilenameLock) ActivePaths.Add(path);
+    }
+
+    private static void ReleaseActive(string? path)
+    {
+        if (path != null) lock (FilenameLock) ActivePaths.Remove(path);
+    }
+
+    private sealed class RangeNotHonoredException()
+        : Exception("Server ignored the byte range for a download part");
 
     public void Dispose()
     {
