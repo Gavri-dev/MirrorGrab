@@ -9,6 +9,7 @@ public class AppSettings
     public int ConcurrentDownloads { get; set; } = 8;
     public bool AutoExtract { get; set; }
     public bool CloseToTray { get; set; }
+    public double NameColumnShare { get; set; } = 0.6;
 }
 
 public static class SettingsService

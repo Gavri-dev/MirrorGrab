@@ -27,6 +27,9 @@ public partial class SettingsView : UserControl
 
     private void Save()
     {
+        // The Downloads view saves the column split itself; don't overwrite it with
+        // the value we loaded at startup.
+        _settings.NameColumnShare = SettingsService.Load().NameColumnShare;
         SettingsService.Save(_settings);
         SettingsChanged?.Invoke();
     }

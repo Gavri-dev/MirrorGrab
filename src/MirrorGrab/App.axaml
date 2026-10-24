@@ -19,19 +19,21 @@
   <Application.Styles>
     <FluentTheme />
 
-    <!-- Flat progress bar matching Python QProgressBar style -->
+    <!-- Flat, square progress bar that fills its download-list cell -->
     <Style Selector="ProgressBar.flat">
-      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="CornerRadius" Value="0" />
       <Setter Property="MinHeight" Value="14" />
+      <!-- Fluent's 200px minimum would spill the bar over neighbouring columns -->
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
       <Setter Property="Template">
         <ControlTemplate TargetType="ProgressBar">
           <Border Background="{TemplateBinding Background}"
-                  CornerRadius="{TemplateBinding CornerRadius}"
-                  BorderBrush="#2f2f2f" BorderThickness="1">
+                  CornerRadius="{TemplateBinding CornerRadius}">
             <Panel ClipToBounds="True">
               <Border x:Name="PART_Indicator"
                       Background="{TemplateBinding Foreground}"
-                      CornerRadius="1"
+                      CornerRadius="{TemplateBinding CornerRadius}"
                       HorizontalAlignment="Left" />
             </Panel>
           </Border>

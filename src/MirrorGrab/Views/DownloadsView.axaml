@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:MirrorGrab.ViewModels"
              xmlns:conv="using:MirrorGrab.Converters"
+             xmlns:local="using:MirrorGrab.Views"
              x:Class="MirrorGrab.Views.DownloadsView"
              x:DataType="vm:MainWindowViewModel"
              Background="{StaticResource BgBrush}">
@@ -9,6 +10,25 @@
   <UserControl.Resources>
     <conv:StringToSolidBrushConverter x:Key="ToBrush" />
   </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- Column divider: a line on a column's right edge, reaching through the row's padding.
+         The overhang must equal that row's vertical padding exactly: any more pokes into the
+         neighbouring row and draws over its progress bar. -->
+    <Style Selector="Border.colsep">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Margin" Value="0,-8" />   <!-- header: Padding 0,8 -->
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Background" Value="{StaticResource BorderBrush}" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.batchRow Border.colsep">
+      <Setter Property="Margin" Value="0,-6" />
+    </Style>
+    <Style Selector="Border.itemRow Border.colsep">
+      <Setter Property="Margin" Value="0,-5" />
+    </Style>
+  </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,*">
     <!-- Toolbar -->
@@ -64,19 +84,36 @@
     <Border Grid.Row="1" Background="{StaticResource BgAltBrush}"
             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
             Padding="0,8" IsVisible="{Binding !HasNoBatches}">
-      <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
-        <TextBlock Grid.Column="1" Text="Name" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0" />
+      <!-- Name is sized by the view (drag its right edge); the progress bar takes the rest -->
+      <Grid x:Name="HeaderGrid" ColumnDefinitions="30,Auto,120,*,90,70,120,130" Margin="8,0">
+        <Border Grid.Column="1" Classes="colsep" />
+        <Border Grid.Column="2" Classes="colsep" />
+        <Border Grid.Column="3" Classes="colsep" />
+        <Border Grid.Column="4" Classes="colsep" />
+        <Border Grid.Column="5" Classes="colsep" />
+        <Border Grid.Column="6" Classes="colsep" />
+
+        <Panel Grid.Column="1" Width="{CompiledBinding $parent[local:DownloadsView].NameColumnWidth}">
+          <TextBlock Text="Name" Foreground="{StaticResource TextDimBrush}"
+                     FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0" />
+          <!-- Drag handle over the Name divider -->
+          <Border Width="8" Margin="0,-8" HorizontalAlignment="Right"
+                  Background="Transparent" Cursor="SizeWestEast"
+                  PointerPressed="NameSplitter_PointerPressed"
+                  PointerMoved="NameSplitter_PointerMoved"
+                  PointerReleased="NameSplitter_PointerReleased"
+                  PointerCaptureLost="NameSplitter_PointerCaptureLost" />
+        </Panel>
         <TextBlock Grid.Column="2" Text="Size" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="Progress" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0" />
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="Speed" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
         <TextBlock Grid.Column="5" Text="ETA" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
         <TextBlock Grid.Column="6" Text="Status" Foreground="{StaticResource TextDimBrush}"
-                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
       </Grid>
     </Border>
 
@@ -97,7 +134,7 @@
             <DataTemplate x:DataType="vm:BatchViewModel">
               <StackPanel>
                 <!-- ═══ Batch row ═══ -->
-                <Border Padding="0,6" Background="{StaticResource BgAltBrush}"
+                <Border Classes="batchRow" Padding="0,6" Background="{StaticResource BgAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                         Tag="{Binding Id}">
                   <Border.ContextMenu>
@@ -105,7 +142,14 @@
                       <MenuItem Header="Open folder" Tag="{Binding Id}" Click="Ctx_OpenBatchFolder" />
                     </ContextMenu>
                   </Border.ContextMenu>
-                  <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
+                  <Grid ColumnDefinitions="30,Auto,120,*,90,70,120,130" Margin="8,0">
+                    <Border Grid.Column="1" Classes="colsep" />
+                    <Border Grid.Column="2" Classes="colsep" />
+                    <Border Grid.Column="3" Classes="colsep" />
+                    <Border Grid.Column="4" Classes="colsep" />
+                    <Border Grid.Column="5" Classes="colsep" />
+                    <Border Grid.Column="6" Classes="colsep" />
+
                     <!-- Expand/collapse -->
                     <Button Grid.Column="0" Background="Transparent"
                             Padding="4,2" VerticalAlignment="Center"
@@ -119,19 +163,22 @@
                     </Button>
 
                     <!-- Name (bold) -->
-                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" FontSize="13"
-                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" Margin="4,0" />
+                    <Panel Grid.Column="1" Width="{CompiledBinding $parent[local:DownloadsView].NameColumnWidth}">
+                      <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13"
+                                 Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis" Margin="4,0"
+                                 ToolTip.Tip="{Binding Name}" />
+                    </Panel>
 
                     <!-- Size -->
                     <TextBlock Grid.Column="2" Text="{Binding SizeText}"
                                Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                               VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
-                    <!-- Progress bar with % text -->
-                    <Panel Grid.Column="3" Height="16" Margin="8,0">
+                    <!-- Progress bar with % text: fills the whole cell, through the row's
+                         padding, stopping short of the column divider -->
+                    <Panel Grid.Column="3" Margin="0,-6,1,-6">
                       <ProgressBar Classes="flat" Value="{Binding Progress}" Minimum="0" Maximum="100"
-                                   Height="16"
                                    Foreground="{Binding ProgressBarColor, Converter={StaticResource ToBrush}}"
                                    Background="#2a2a2a" />
                       <TextBlock Text="{Binding ProgressText}"
@@ -142,24 +189,24 @@
                     <!-- Speed -->
                     <TextBlock Grid.Column="4" Text="{Binding SpeedText}"
                                Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                               VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
                     <!-- ETA -->
                     <TextBlock Grid.Column="5" Text="{Binding EtaText}"
                                Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                               VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                               VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
                     <!-- Status -->
                     <TextBlock Grid.Column="6" Text="{Binding StatusText}"
                                Foreground="{Binding StatusColor, Converter={StaticResource ToBrush}}"
                                FontSize="11" VerticalAlignment="Center"
-                               TextAlignment="Right" Margin="0,0,8,0"
+                               TextAlignment="Center" Margin="4,0"
                                TextTrimming="CharacterEllipsis" />
 
                     <!-- Batch actions -->
                     <StackPanel Grid.Column="7" Orientation="Horizontal"
                                 Spacing="1" VerticalAlignment="Center"
-                                HorizontalAlignment="Left">
+                                HorizontalAlignment="Center">
                       <Button ToolTip.Tip="Pause" IsVisible="{Binding ShowPause}"
                               Tag="{Binding Id}" Click="PauseBatch_Click"
                               Background="Transparent" Padding="5,3" CornerRadius="3">
@@ -195,11 +242,13 @@
                 </Border>
 
                 <!-- ═══ Item rows (collapsible) ═══ -->
-                <ItemsControl ItemsSource="{Binding Items}"
-                              IsVisible="{Binding IsExpanded}">
+                <!-- The clipping Border is the "drawer" the expand/collapse animation grows and shrinks -->
+                <Border Classes="batchItems" ClipToBounds="True"
+                        IsVisible="{Binding IsExpanded}">
+                <ItemsControl ItemsSource="{Binding Items}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:DownloadItemViewModel">
-                      <Border Padding="0,5" Background="{StaticResource BgBrush}"
+                      <Border Classes="itemRow" Padding="0,5" Background="{StaticResource BgBrush}"
                               BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                               Tag="{Binding Id}">
                         <Border.ContextMenu>
@@ -212,25 +261,32 @@
                                       IsVisible="{Binding ShowRetry}" />
                           </ContextMenu>
                         </Border.ContextMenu>
-                        <Grid ColumnDefinitions="30,*,120,200,90,70,120,130" Margin="8,0">
-                          <!-- Indent spacer -->
-                          <Panel Grid.Column="0" />
+                        <Grid ColumnDefinitions="30,Auto,120,*,90,70,120,130" Margin="8,0">
+                          <Border Grid.Column="1" Classes="colsep" />
+                          <Border Grid.Column="2" Classes="colsep" />
+                          <Border Grid.Column="3" Classes="colsep" />
+                          <Border Grid.Column="4" Classes="colsep" />
+                          <Border Grid.Column="5" Classes="colsep" />
+                          <Border Grid.Column="6" Classes="colsep" />
 
-                          <!-- Name -->
-                          <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                          <!-- Name: the column keeps the shared width; the text also uses the
+                               space under the batch's expand arrow -->
+                          <Panel Grid.Column="1" Width="{CompiledBinding $parent[local:DownloadsView].NameColumnWidth}" />
+                          <TextBlock Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding DisplayName}"
                                      Foreground="{StaticResource TextBrush}" FontSize="12"
-                                     VerticalAlignment="Center" Margin="22,0,4,0"
-                                     TextTrimming="CharacterEllipsis" />
+                                     VerticalAlignment="Center" Margin="8,0,4,0"
+                                     TextTrimming="CharacterEllipsis"
+                                     ToolTip.Tip="{Binding DisplayName}" />
 
                           <!-- Size -->
                           <TextBlock Grid.Column="2" Text="{Binding SizeText}"
                                      Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                                     VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
-                          <!-- Progress bar with % text -->
-                          <Panel Grid.Column="3" Height="14" Margin="8,0">
+                          <!-- Progress bar with % text: fills the whole cell, through the row's
+                               padding, stopping short of the column divider -->
+                          <Panel Grid.Column="3" Margin="0,-5,1,-5">
                             <ProgressBar Classes="flat" Value="{Binding Progress}" Minimum="0" Maximum="100"
-                                         Height="14"
                                          Foreground="{Binding ProgressBarColor, Converter={StaticResource ToBrush}}"
                                          Background="#2a2a2a" />
                             <TextBlock Text="{Binding ProgressText}"
@@ -241,24 +297,24 @@
                           <!-- Speed -->
                           <TextBlock Grid.Column="4" Text="{Binding SpeedText}"
                                      Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                                     VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
                           <!-- ETA -->
                           <TextBlock Grid.Column="5" Text="{Binding EtaText}"
                                      Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                                     VerticalAlignment="Center" TextAlignment="Right" Margin="0,0,8,0" />
+                                     VerticalAlignment="Center" TextAlignment="Center" Margin="4,0" />
 
                           <!-- Status -->
                           <TextBlock Grid.Column="6" Text="{Binding StatusText}"
                                      Foreground="{Binding StatusColor, Converter={StaticResource ToBrush}}"
                                      FontSize="11" VerticalAlignment="Center"
-                                     TextAlignment="Right" Margin="0,0,8,0"
+                                     TextAlignment="Center" Margin="4,0"
                                      TextTrimming="CharacterEllipsis" />
 
                           <!-- Item actions -->
                           <StackPanel Grid.Column="7" Orientation="Horizontal"
                                       Spacing="1" VerticalAlignment="Center"
-                                      HorizontalAlignment="Left">
+                                      HorizontalAlignment="Center">
                             <Button ToolTip.Tip="Pause" IsVisible="{Binding ShowPause}"
                                     Tag="{Binding Id}" Click="PauseItem_Click"
                                     Background="Transparent" Padding="4,2" CornerRadius="3">
@@ -290,6 +346,7 @@
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                </Border>
               </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
