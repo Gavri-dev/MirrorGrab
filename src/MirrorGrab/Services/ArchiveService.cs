@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 
 namespace MirrorGrab.Services;
 
@@ -8,6 +9,9 @@ public static class ArchiveService
 {
     private static readonly string[] ArchiveExts =
         [".zip", ".7z", ".rar", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz"];
+
+    private static readonly string[] CompressedTarExts =
+        [".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz"];
 
     private static readonly Regex MultipartRe =
         new(@"\.(r\d{2,3}|7z\.\d{3}|zip\.\d{3})$", RegexOptions.IgnoreCase);
@@ -20,6 +24,9 @@ public static class ArchiveService
         var lower = filepath.ToLower();
         return ArchiveExts.Any(ext => lower.EndsWith(ext)) || MultipartRe.IsMatch(lower);
     }
+
+    private static bool IsCompressedTar(string filepath) =>
+        CompressedTarExts.Any(ext => filepath.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
 
     public static List<(string First, List<string> Parts)> GroupArchives(IEnumerable<string> filepaths)
     {
@@ -68,14 +75,29 @@ public static class ArchiveService
 
         try
         {
-            using var archive = ArchiveFactory.Open(filepath);
+            var options = new ExtractionOptions
+            {
+                ExtractFullPath = true,
+                Overwrite = true,
+            };
+
+            // Compressed tarballs only open through the streaming reader;
+            // ArchiveFactory can't see past the outer gzip/bzip2/xz layer.
+            if (IsCompressedTar(filepath))
+            {
+                using var reader = ReaderFactory.OpenReader(filepath);
+                while (reader.MoveToNextEntry())
+                {
+                    if (!reader.Entry.IsDirectory)
+                        reader.WriteEntryToDirectory(destDir, options);
+                }
+                return destDir;
+            }
+
+            using var archive = ArchiveFactory.OpenArchive(filepath);
             foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
             {
-                entry.WriteToDirectory(destDir, new ExtractionOptions
-                {
-                    ExtractFullPath = true,
-                    Overwrite = true,
-                });
+                entry.WriteToDirectory(destDir, options);
             }
             return destDir;
         }
