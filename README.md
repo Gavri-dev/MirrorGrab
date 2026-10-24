@@ -36,19 +36,24 @@ Run from source:
 dotnet run --project src/MirrorGrab -c Release
 ```
 
-## Single-file release
+## Self-contained release
 
 ```cmd
 dotnet publish src/MirrorGrab -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 ```
 
-The self-contained executable is written to:
+This writes the app and its `fuckingfast.co` resolver, each as a self-contained single file:
 
 ```
-src/MirrorGrab/bin/Release/net8.0/win-x64/publish/MirrorGrab.exe
+src/MirrorGrab/bin/Release/net8.0/win-x64/publish/
+├── MirrorGrab.exe
+└── resolver/
+    └── FfResolver.exe
 ```
 
-No .NET runtime install is required on the target machine — the binary can be copied and run directly.
+No .NET runtime install is required on the target machine. Ship `MirrorGrab.exe` together
+with the `resolver` folder beside it: without it, `fuckingfast.co` links can't be resolved
+(other hosts still work).
 
 ## Usage
 

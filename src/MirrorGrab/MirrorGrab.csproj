@@ -8,10 +8,11 @@
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <AssemblyName>MirrorGrab</AssemblyName>
     <RootNamespace>MirrorGrab</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,19 +37,42 @@
                       Private="false" />
   </ItemGroup>
 
-  <!-- Drop FfResolver.exe (+ its files) into resolver\ beside MirrorGrab.exe, on build and publish. -->
+  <!-- Drop FfResolver.exe (+ its files) into resolver\ beside MirrorGrab.exe on build.
+       win-*\ holds per-RID builds from self-contained publishes; never copy those. -->
+  <PropertyGroup>
+    <_FfResolverBin>$(MSBuildThisFileDirectory)..\FfResolver\bin\$(Configuration)\net8.0-windows\</_FfResolverBin>
+  </PropertyGroup>
+
   <Target Name="CopyFfResolver" AfterTargets="Build">
     <ItemGroup>
-      <_FfResolverFiles Include="$(MSBuildThisFileDirectory)..\FfResolver\bin\$(Configuration)\net8.0-windows\**\*.*" />
+      <_FfResolverFiles Include="$(_FfResolverBin)**\*.*" Exclude="$(_FfResolverBin)win-*\**" />
     </ItemGroup>
     <Copy SourceFiles="@(_FfResolverFiles)"
           DestinationFiles="@(_FfResolverFiles->'$(OutDir)resolver\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="CopyFfResolverOnPublish" AfterTargets="Publish">
+  <!-- Self-contained publish (-r win-x64): publish the resolver self-contained too, as one
+       exe, so the release runs without a .NET runtime installed (MirrorGrab's own bundled
+       runtime is private to its single-file exe and can't host another process). -->
+  <Target Name="PublishFfResolverSelfContained" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <_FfResolverProject>$(MSBuildThisFileDirectory)..\FfResolver\FfResolver.csproj</_FfResolverProject>
+      <_FfResolverRid>Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true</_FfResolverRid>
+      <!-- Absolute: a relative PublishDir would resolve against the resolver's project folder. -->
+      <_FfResolverPublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)', 'resolver'))</_FfResolverPublishDir>
+    </PropertyGroup>
+    <!-- Restore in its own evaluation so Publish sees the RID-specific assets. -->
+    <MSBuild Projects="$(_FfResolverProject)" Targets="Restore"
+             Properties="$(_FfResolverRid);_FfResolverRestore=true" />
+    <MSBuild Projects="$(_FfResolverProject)" Targets="Publish"
+             Properties="$(_FfResolverRid);PublishSingleFile=true;EnableCompressionInSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;DebugType=none;PublishReferencesDocumentationFiles=false;PublishDir=$(_FfResolverPublishDir)" />
+  </Target>
+
+  <!-- Framework-dependent publish: copy the resolver's build output as-is. -->
+  <Target Name="CopyFfResolverOnPublish" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == ''">
     <ItemGroup>
-      <_FfResolverPub Include="$(MSBuildThisFileDirectory)..\FfResolver\bin\$(Configuration)\net8.0-windows\**\*.*" />
+      <_FfResolverPub Include="$(_FfResolverBin)**\*.*" Exclude="$(_FfResolverBin)win-*\**" />
     </ItemGroup>
     <Copy SourceFiles="@(_FfResolverPub)"
           DestinationFiles="@(_FfResolverPub->'$(PublishDir)resolver\%(RecursiveDir)%(Filename)%(Extension)')"
