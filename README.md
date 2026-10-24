@@ -13,6 +13,16 @@ A Windows download manager for repack mirror links (FitGirl, ElAmigos, DODI, etc
 - Single-instance enforcement, system tray, close-to-tray option
 - Dark UI built on Avalonia 11
 
+## Download
+
+1. Get `MirrorGrab-vX.Y.Z-win-x64.zip` from the [latest release](https://github.com/Gavri-dev/MirrorGrab/releases/latest).
+2. Extract it anywhere. Keep the `resolver` folder next to `MirrorGrab.exe` — without it,
+   `fuckingfast.co` links can't be resolved.
+3. Run `MirrorGrab.exe`. No installer, and no .NET runtime needed.
+
+The binaries are unsigned: if SmartScreen warns, choose **More info → Run anyway**. Each
+release includes a `SHA256SUMS.txt` to verify the download.
+
 ## Requirements
 
 - Windows 10 or later (x64)
