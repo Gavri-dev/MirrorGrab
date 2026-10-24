@@ -35,9 +35,20 @@ public sealed class FuckingFastResolver : IDisposable
             await _proc!.StandardInput.WriteLineAsync(pageUrl.AsMemory(), ct);
             await _proc.StandardInput.FlushAsync(ct);
 
-            var line = await _proc.StandardOutput.ReadLineAsync(ct)
+            string? line;
+            try
+            {
+                line = await _proc.StandardOutput.ReadLineAsync(ct)
                                   .AsTask()
                                   .WaitAsync(TimeSpan.FromSeconds(120), ct);
+            }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
+            {
+                // The read is still pending on this process, and its late answer would be
+                // taken as the next link's. Stop it; the next call starts a fresh resolver.
+                StopProcess();
+                throw;
+            }
 
             if (line is null)
                 throw new InvalidOperationException("Resolver process closed unexpectedly.");
@@ -49,6 +60,14 @@ public sealed class FuckingFastResolver : IDisposable
             throw new InvalidOperationException("Unexpected resolver output: " + line);
         }
         finally { _gate.Release(); }
+    }
+
+    private void StopProcess()
+    {
+        try { if (_proc is { HasExited: false }) _proc.Kill(true); }
+        catch { /* already gone */ }
+        _proc?.Dispose();
+        _proc = null;
     }
 
     private void EnsureStarted()

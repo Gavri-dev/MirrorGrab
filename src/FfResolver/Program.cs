@@ -95,6 +95,11 @@ sealed class ResolverForm : Form
     // still in flight) would otherwise be returned as this page's link — wrong file.
     private volatile bool _armed;
     private readonly HashSet<ulong> _pageNavIds = new();
+
+    // Bumped for every request. A resolve loop belongs to one request and stops once a
+    // newer one starts; otherwise it would keep running against later requests, surface
+    // the check window for them and fail them at its own deadline.
+    private int _request;
     public event Action? Ready;
 
     public ResolverForm()
@@ -206,6 +211,8 @@ sealed class ResolverForm : Form
 
     private async Task RunResolve(string url, int timeoutSec)
     {
+        var request = ++_request;
+        bool Current() => request == _request;
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSec);
         var surfaceAt = DateTime.UtcNow.AddSeconds(Math.Min(InvisibleBudgetSec, timeoutSec));
         bool surfaced = false;
@@ -223,6 +230,7 @@ sealed class ResolverForm : Form
             _web.CoreWebView2.Navigate(url);
             await Task.WhenAny(navDone.Task, Task.Delay(TimeSpan.FromSeconds(20)));
             _web.CoreWebView2.NavigationCompleted -= OnNav;
+            if (!Current()) return;
             _navigating = false;
 
             // Click the download button on a timer. The first clicks may only spawn ad
@@ -234,21 +242,21 @@ sealed class ResolverForm : Form
                 @"document.querySelector('button,a');if(el){el.click();return '1';}return '0';})()";
 
             var lastClick = DateTime.MinValue;
-            while (DateTime.UtcNow < deadline && !_captured)
+            while (DateTime.UtcNow < deadline && !_captured && Current())
             {
                 if ((DateTime.UtcNow - lastClick).TotalMilliseconds > 900)
                 {
                     try { await _web.CoreWebView2.ExecuteScriptAsync(clickJs); } catch { }
                     lastClick = DateTime.UtcNow;
                 }
-                if (!surfaced && DateTime.UtcNow > surfaceAt) { surfaced = true; Surface(); }
+                if (!surfaced && Current() && DateTime.UtcNow > surfaceAt) { surfaced = true; Surface(); }
                 await Task.Delay(120);
             }
 
-            if (!_captured)
+            if (!_captured && Current())
                 Complete(false, surfaced ? "check not completed in time" : "no /dl/ link (timed out)");
         }
-        catch (Exception ex) { Complete(false, ex.Message); }
+        catch (Exception ex) { if (Current()) Complete(false, ex.Message); }
         finally { if (surfaced) Hide(); }
     }
 

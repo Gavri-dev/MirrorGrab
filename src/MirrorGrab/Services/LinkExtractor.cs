@@ -59,7 +59,7 @@ public class LinkExtractor : IDisposable
         return c;
     }
 
-    public async Task<string?> ExtractAsync(string url)
+    public async Task<string?> ExtractAsync(string url, CancellationToken ct = default)
     {
         Uri uri;
         try { uri = new Uri(url); }
@@ -70,21 +70,25 @@ public class LinkExtractor : IDisposable
         // Exceptions propagate on purpose: the caller shows ex.Message so a broken
         // host tells you WHY (Cloudflare / layout change) instead of a silent null.
         if (host.Contains("fuckingfast.co"))
-            return await ExtractFuckingFast(url);
+            return await ExtractFuckingFast(url, ct);
         if (host.Contains("datanodes.to"))
             return await ExtractDatanodes(url);
 
-        throw new NotSupportedException($"Unsupported host: {host}. Only fuckingfast.co and datanodes.to are supported.");
+        // Any other host: the URL is the download link itself.
+        if (uri.Scheme is "http" or "https")
+            return url;
+
+        throw new NotSupportedException($"Unsupported link: {url}. Only http(s) links can be downloaded.");
     }
 
     // fuckingfast.co moved the direct link behind a Cloudflare Turnstile captcha and
     // an htmx POST, so a plain HTTP fetch can no longer scrape it. Resolution now runs
     // through the headless-WebView2 sidecar, which clears the captcha and returns the
     // signed dl.fuckingfast.co/dl/... URL (usable by the normal download engine).
-    private async Task<string?> ExtractFuckingFast(string url)
+    private async Task<string?> ExtractFuckingFast(string url, CancellationToken ct)
     {
         _ff ??= new FuckingFastResolver();
-        return await _ff.ResolveAsync(url);
+        return await _ff.ResolveAsync(url, ct);
     }
 
     private async Task<string?> ExtractDatanodes(string url)
