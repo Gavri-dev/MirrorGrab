@@ -79,11 +79,28 @@ public class BatchViewModel : ViewModelBase
         BatchStatus.Completed => "Completed",
         BatchStatus.Failed when AllCancelled => "Cancelled",
         BatchStatus.Failed => "Failed",
-        BatchStatus.Mixed =>
-            $"{_model.Items.Count(i => i.Status == DownloadStatus.Completed)} ok, " +
-            $"{_model.Items.Count(i => i.Status == DownloadStatus.Failed)} failed",
+        BatchStatus.Mixed => MixedSummary(),
         _ => ""
     };
+
+    // e.g. "29 ok, 3 cancelled" or "1 ok, 1 failed, 2 cancelled": only the kinds present.
+    // Cancelled items are stored as Failed but are reported separately.
+    private string MixedSummary()
+    {
+        int ok = 0, failed = 0, cancelled = 0;
+        foreach (var i in _model.Items)
+        {
+            if (i.Status == DownloadStatus.Completed) ok++;
+            else if (i.Status == DownloadStatus.Failed && i.Error == "Cancelled") cancelled++;
+            else if (i.Status == DownloadStatus.Failed) failed++;
+        }
+
+        var parts = new List<string>();
+        if (ok > 0) parts.Add($"{ok} ok");
+        if (failed > 0) parts.Add($"{failed} failed");
+        if (cancelled > 0) parts.Add($"{cancelled} cancelled");
+        return string.Join(", ", parts);
+    }
 
     public string StatusColor => _model.Status switch
     {

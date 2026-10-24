@@ -12,8 +12,14 @@ public class DownloadBatch
     private double _lastTick;
     private const double SmoothTau = 6.0;
 
-    public long TotalSize => Items.Sum(i => i.TotalSize);
-    public long DownloadedSize => Items.Sum(i => i.DownloadedSize);
+    // Cancelled and skipped items aren't being downloaded, so they're left out of the
+    // batch's size, progress and ETA. Retrying one puts it back in.
+    private IEnumerable<DownloadItem> CountedItems => Items.Where(i =>
+        i.Status != DownloadStatus.Skipped &&
+        !(i.Status == DownloadStatus.Failed && i.Error == "Cancelled"));
+
+    public long TotalSize => CountedItems.Sum(i => i.TotalSize);
+    public long DownloadedSize => CountedItems.Sum(i => i.DownloadedSize);
 
     public double Progress =>
         TotalSize > 0 ? (double)DownloadedSize / TotalSize * 100.0 : 0;
