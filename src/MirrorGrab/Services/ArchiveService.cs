@@ -104,6 +104,7 @@ public static class ArchiveService
         catch (Exception ex)
         {
             // Try 7z command as fallback
+            var reason = ex.Message;
             var sevenZip = Find7z();
             if (sevenZip != null)
             {
@@ -111,24 +112,29 @@ public static class ArchiveService
                 {
                     FileName = sevenZip,
                     Arguments = $"x \"{filepath}\" -o\"{destDir}\" -y",
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
                 };
-                var proc = System.Diagnostics.Process.Start(psi)!;
-                if (!proc.WaitForExit(120_000))
-                {
-                    try { proc.Kill(true); } catch { }
-                    throw new InvalidOperationException(
-                        $"7z timed out extracting '{Path.GetFileName(filepath)}'.");
-                }
+                using var proc = System.Diagnostics.Process.Start(psi)!;
+                // 7z lists every file it extracts: drain both pipes or it blocks once one fills.
+                // Closing stdin makes a password prompt fail instead of waiting forever. No time
+                // limit: a multi-GB repack can take far longer than a few minutes.
+                proc.StandardInput.Close();
+                var stdout = proc.StandardOutput.ReadToEndAsync();
+                var stderr = proc.StandardError.ReadToEndAsync();
+                proc.WaitForExit();
+                Task.WaitAll(stdout, stderr);
                 if (proc.ExitCode == 0)
                     return destDir;
+                var err = stderr.Result.Trim();
+                reason = $"7z exit code {proc.ExitCode}" + (err.Length > 0 ? $": {err}" : "");
             }
 
             throw new InvalidOperationException(
-                $"Failed to extract '{Path.GetFileName(filepath)}': {ex.Message}", ex);
+                $"Failed to extract '{Path.GetFileName(filepath)}': {reason}", ex);
         }
     }
 
@@ -136,6 +142,11 @@ public static class ArchiveService
     {
         var dir = Path.GetDirectoryName(filepath) ?? ".";
         var name = Path.GetFileName(filepath);
+
+        // Multipart suffixes first (name.part01.rar, name.7z.001): they end in the archive
+        // extension, so stripping that first would leave ".part01" in the folder name.
+        name = RarPartRe.Replace(name, "");
+        name = MultipartRe.Replace(name, "");
 
         // Strip multi-extensions (.tar.gz etc)
         foreach (var ext in ArchiveExts.OrderByDescending(e => e.Length))
@@ -146,10 +157,6 @@ public static class ArchiveService
                 break;
             }
         }
-
-        // Also strip multipart extensions
-        name = MultipartRe.Replace(name, "");
-        name = RarPartRe.Replace(name, "");
 
         if (string.IsNullOrWhiteSpace(name))
             name = "extracted";

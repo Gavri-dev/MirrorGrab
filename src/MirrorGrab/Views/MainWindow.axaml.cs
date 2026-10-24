@@ -33,6 +33,8 @@ public partial class MainWindow : Window
 
         DownloadsPage.DataContext = _vm;
         SettingsPage.SettingsChanged += () => _vm.ReloadSettings();
+        _vm.OnArchiveExtractionNeeded += (batchName, groups) =>
+            new ExtractionDialog(batchName, groups).Show(this);
 
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);

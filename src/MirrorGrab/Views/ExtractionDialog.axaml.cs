@@ -44,12 +44,16 @@ public partial class ExtractionDialog : Window
         {
             var (first, parts) = _groups[i];
             var name = Path.GetFileName(first);
+            // The posted updates run later, after the loop has moved on: give each one its
+            // own copies instead of the shared loop variable and counter.
+            var row = i;
+            var position = _doneCount + 1;
 
             Dispatcher.UIThread.Post(() =>
             {
-                CurrentLabel.Text = $"[{_doneCount + 1}/{_groups.Count}] {name}";
-                if (i < FileList.Items.Count)
-                    FileList.Items[i] = $"{name} — extracting...";
+                CurrentLabel.Text = $"[{position}/{_groups.Count}] {name}";
+                if (row < FileList.Items.Count)
+                    FileList.Items[row] = $"{name} — extracting...";
             });
 
             try
@@ -58,8 +62,8 @@ public partial class ExtractionDialog : Window
 
                 Dispatcher.UIThread.Post(() =>
                 {
-                    if (i < FileList.Items.Count)
-                        FileList.Items[i] = $"\u2713 {name}";
+                    if (row < FileList.Items.Count)
+                        FileList.Items[row] = $"\u2713 {name}";
                 });
 
                 _successFiles.AddRange(parts);
@@ -68,24 +72,24 @@ public partial class ExtractionDialog : Window
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    if (i < FileList.Items.Count)
-                        FileList.Items[i] = $"\u2717 {name} — {ex.Message}";
+                    if (row < FileList.Items.Count)
+                        FileList.Items[row] = $"\u2717 {name} — {ex.Message}";
                 });
 
                 _failedFiles.Add(first);
             }
 
-            _doneCount++;
+            var done = ++_doneCount;
             Dispatcher.UIThread.Post(() =>
             {
-                OverallProgress.Value = _doneCount;
+                OverallProgress.Value = done;
             });
         }
 
         _finished = true;
         Dispatcher.UIThread.Post(() =>
         {
-            var msg = $"Extracted {_successFiles.Count} archive(s).";
+            var msg = $"Extracted {_groups.Count - _failedFiles.Count} archive(s).";   // archives, not part files
             if (_failedFiles.Count > 0)
                 msg += $" {_failedFiles.Count} failed.";
             SummaryLabel.Text = msg;

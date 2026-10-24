@@ -304,6 +304,7 @@ public class MainWindowViewModel : ViewModelBase
         try
         {
             var direct = await extractor.ExtractAsync(item.OriginalUrl);
+            if (IsCancelled(item)) return false;   // batch cancelled while this was resolving
             if (direct != null)
             {
                 item.DirectUrl = direct;
@@ -316,6 +317,7 @@ public class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            if (IsCancelled(item)) return false;
             item.Status = DownloadStatus.Failed;
             item.Error = ex.Message;
         }
@@ -323,30 +325,42 @@ public class MainWindowViewModel : ViewModelBase
         return false;
     }
 
+    private static bool IsCancelled(DownloadItem item) =>
+        item.Status == DownloadStatus.Failed && item.Error == "Cancelled";
+
+    // batch.Items is changed on the UI thread (adding/removing rows) while extraction reads
+    // it in the background: always take a copy under its lock instead of iterating it.
+    private static List<DownloadItem> Snapshot(DownloadBatch batch)
+    {
+        lock (batch.Items) return batch.Items.ToList();
+    }
+
     private async Task RunExtraction(DownloadBatch batch)
     {
         using var extractor = new LinkExtractor();
         using var httpClient = CreateProbeClient();
 
-        foreach (var item in batch.Items)
+        foreach (var item in Snapshot(batch))
         {
             await ExtractLinkAsync(extractor, item, batch.Id);
             PostBatchUpdate(batch.Id);
         }
 
-        // Probe sizes
-        var ready = batch.Items.Where(i => i.DirectUrl != null).ToList();
+        // Probe sizes (items removed meanwhile drop out here)
+        var ready = Snapshot(batch).Where(i => i.DirectUrl != null).ToList();
         if (ready.Count > 0)
         {
             await Task.WhenAll(ready.Select(i => ProbeSize(httpClient, i)));
             foreach (var i in ready)
                 PostItemUpdate(i.Id);
+            var current = Snapshot(batch);
+            ready = ready.Where(current.Contains).ToList();
         }
 
         // Check if all failed
-        if (!batch.Items.Any(i => i.DirectUrl != null))
+        if (ready.Count == 0)
         {
-            foreach (var item in batch.Items.Where(i => i.Status != DownloadStatus.Failed))
+            foreach (var item in Snapshot(batch).Where(i => i.Status != DownloadStatus.Failed))
             {
                 item.Status = DownloadStatus.Failed;
                 item.Error ??= "Link extraction failed";
@@ -448,7 +462,7 @@ public class MainWindowViewModel : ViewModelBase
         try
         {
             holder[0] ??= new LinkExtractor();
-            return await holder[0]!.ExtractAsync(item.OriginalUrl);
+            return await holder[0]!.ExtractAsync(item.OriginalUrl, ct);
         }
         finally { gate.Release(); }
     }
@@ -497,22 +511,29 @@ public class MainWindowViewModel : ViewModelBase
                 bvm.Refresh();
             SyncUi();
 
-            // Auto-extract
-            if (_batches.TryGetValue(batchId, out var batch) && batch.AutoExtract)
-            {
-                var archives = batch.Items
-                    .Where(i => i.Status == DownloadStatus.Completed &&
-                                i.Filepath != null && ArchiveService.IsArchive(i.Filepath))
-                    .Select(i => i.Filepath!)
-                    .ToList();
-
-                if (archives.Count > 0)
-                {
-                    var groups = ArchiveService.GroupArchives(archives);
-                    OnArchiveExtractionNeeded?.Invoke(batch.Name, groups);
-                }
-            }
+            if (_batches.TryGetValue(batchId, out var batch))
+                MaybeAutoExtract(batch);
         });
+    }
+
+    // Auto-extract once every part that counts has downloaded, whether that happens in the
+    // batch's first run or after retries; cancelled and skipped parts don't hold it back.
+    // Extracting earlier would hit missing volumes of multi-part archives. UI thread only.
+    private void MaybeAutoExtract(DownloadBatch batch)
+    {
+        if (!batch.AutoExtract || batch.AutoExtractStarted) return;
+
+        var counted = batch.CountedItems.ToList();
+        if (counted.Count == 0 || counted.Any(i => i.Status != DownloadStatus.Completed)) return;
+
+        var archives = counted
+            .Where(i => i.Filepath != null && ArchiveService.IsArchive(i.Filepath))
+            .Select(i => i.Filepath!)
+            .ToList();
+        if (archives.Count == 0) return;
+
+        batch.AutoExtractStarted = true;
+        OnArchiveExtractionNeeded?.Invoke(batch.Name, ArchiveService.GroupArchives(archives));
     }
 
     // ---- Actions ----
@@ -557,11 +578,12 @@ public class MainWindowViewModel : ViewModelBase
         {
             foreach (var i in resumable)
             {
-                i.DownloadedSize = 0;
+                // Keep Filepath and DownloadedSize: RestoreState only kept the partial file
+                // if it can be resumed, and the engine continues it with a Range request.
+                // (Dropping the path made the engine find its own partial file and skip it.)
                 i.Speed = 0;
                 i.StartedAt = null;
                 i.FinishedAt = null;
-                i.Filepath = null;
                 i.Status = DownloadStatus.Queued;
                 PostItemUpdate(i.Id);
             }
@@ -675,7 +697,7 @@ public class MainWindowViewModel : ViewModelBase
         _itemVMs.Remove(itemId);
 
         if (_batches.TryGetValue(batchId, out var batch) && item != null)
-            batch.Items.Remove(item);
+            lock (batch.Items) batch.Items.Remove(item);
 
         if (_batchVMs.TryGetValue(batchId, out var bvm))
         {
@@ -755,6 +777,33 @@ public class MainWindowViewModel : ViewModelBase
             RetryItem(item.Id);
     }
 
+    // Retries share one resolver and use it one link at a time: "Retry Failed" on a big
+    // batch would otherwise start a hidden browser (and maybe a check window) per link.
+    private readonly SemaphoreSlim _retryResolveGate = new(1, 1);
+    private LinkExtractor? _retryExtractor;
+    private int _retryResolvesPending;
+
+    private async Task<bool> ExtractForRetryAsync(DownloadItem item, int batchId)
+    {
+        Interlocked.Increment(ref _retryResolvesPending);
+        await _retryResolveGate.WaitAsync();
+        try
+        {
+            _retryExtractor ??= new LinkExtractor();
+            return await ExtractLinkAsync(_retryExtractor, item, batchId);
+        }
+        finally
+        {
+            // Last retry out shuts the resolver down.
+            if (Interlocked.Decrement(ref _retryResolvesPending) == 0)
+            {
+                _retryExtractor?.Dispose();
+                _retryExtractor = null;
+            }
+            _retryResolveGate.Release();
+        }
+    }
+
     private async Task RunSingleRetry(DownloadBatch batch, DownloadItem item, bool hadDirect)
     {
         try
@@ -762,8 +811,7 @@ public class MainWindowViewModel : ViewModelBase
             // Phase 1: extraction (if needed)
             if (!hadDirect)
             {
-                using var extractor = new LinkExtractor();
-                if (!await ExtractLinkAsync(extractor, item, batch.Id))
+                if (!await ExtractForRetryAsync(item, batch.Id))
                     return;
 
                 using var httpClient = CreateProbeClient();
@@ -798,6 +846,7 @@ public class MainWindowViewModel : ViewModelBase
         {
             PostItemUpdate(item.Id);
             PostBatchUpdate(batch.Id);
+            Dispatcher.UIThread.Post(() => MaybeAutoExtract(batch));   // retry may have been the last part
         }
     }
 

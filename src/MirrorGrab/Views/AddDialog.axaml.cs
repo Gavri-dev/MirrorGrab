@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using MirrorGrab.Services;
 
 namespace MirrorGrab.Views;
 
@@ -10,6 +11,7 @@ public partial class AddDialog : Window
     public AddDialog()
     {
         InitializeComponent();
+        AutoExtractToggle.IsChecked = SettingsService.Load().AutoExtract;   // Settings default
     }
 
     public void Preset(List<string> urls, string suggestedName = "")

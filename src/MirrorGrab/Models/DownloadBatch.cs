@@ -12,9 +12,12 @@ public class DownloadBatch
     private double _lastTick;
     private const double SmoothTau = 6.0;
 
+    /// <summary>Auto-extract has been started for this batch (once per session).</summary>
+    public bool AutoExtractStarted { get; set; }
+
     // Cancelled and skipped items aren't being downloaded, so they're left out of the
-    // batch's size, progress and ETA. Retrying one puts it back in.
-    private IEnumerable<DownloadItem> CountedItems => Items.Where(i =>
+    // batch's size, progress, ETA and auto-extract. Retrying one puts it back in.
+    public IEnumerable<DownloadItem> CountedItems => Items.Where(i =>
         i.Status != DownloadStatus.Skipped &&
         !(i.Status == DownloadStatus.Failed && i.Error == "Cancelled"));
 
@@ -92,7 +95,9 @@ public class DownloadBatch
                 return BatchStatus.Mixed;
             }
 
-            return BatchStatus.Mixed;
+            // Anything left is waiting to start (e.g. one link failed while the rest are
+            // still being probed). Mixed would count as finished and let it be removed.
+            return BatchStatus.Queued;
         }
     }
 
